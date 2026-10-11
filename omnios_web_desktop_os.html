@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmniOS - Web Desktop Environment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            overflow: hidden;
+            background: #0f172a;
+        }
+        /* Glassmorphism effects */
+        .glass {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glass-window {
+            background: rgba(30, 41, 59, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .glass-taskbar {
+            background: rgba(15, 23, 42, 0.82);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.4);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-window {
+            animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen relative bg-cover bg-center select-none" style="background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2000&auto=format&fit=crop');">
+
+    <!-- Desktop Area -->
+    <div id="desktop" class="absolute inset-0 pb-16 grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-4 p-6 content-start z-0 overflow-hidden">
+        <!-- Icons populated by JS -->
+    </div>
+
+    <!-- Active Windows Layer -->
+    <div id="window-container" class="absolute inset-0 pb-16 pointer-events-none z-10"></div>
+
+    <!-- Start Menu Overlay -->
+    <div id="start-menu" class="absolute bottom-20 left-1/2 -translate-x-1/2 w-[90%] max-w-[600px] h-[500px] glass-window rounded-2xl p-6 shadow-2xl z-40 hidden flex flex-col animate-window">
+        <!-- Search bar -->
+        <div class="relative mb-6">
+            <i class="fa-solid fa-search absolute left-4 top-3.5 text-slate-400"></i>
+            <input type="text" id="start-search" placeholder="Search apps, settings, and documents..." class="w-full bg-slate-800/80 text-white placeholder-slate-400 pl-11 pr-4 py-3 rounded-xl border border-slate-700/60 focus:outline-none focus:border-indigo-500 text-sm">
+        </div>
+        <!-- Pinned Section -->
+        <div class="flex-1 overflow-y-auto pr-1">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Pinned Applications</h3>
+            <div id="start-app-grid" class="grid grid-cols-4 gap-4 text-center">
+                <!-- App items populated by JS -->
+            </div>
+        </div>
+        <!-- Footer Profile & Power -->
+        <div class="mt-4 pt-4 border-t border-slate-700/60 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white shadow-md">O</div>
+                <div>
+                    <div class="text-sm font-semibold text-white">OmniUser</div>
+                    <div class="text-xs text-slate-400">Administrator</div>
+                </div>
+            </div>
+            <button onclick="showNotification('System', 'OmniOS is running smoothly in Chrome.')" class="w-10 h-10 rounded-xl hover:bg-slate-700/50 flex items-center justify-center text-slate-300 transition-colors">
+                <i class="fa-solid fa-power-off text-red-400"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Taskbar / Dock -->
+    <div class="absolute bottom-0 inset-x-0 h-16 glass-taskbar flex items-center justify-between px-4 z-50">
+        <!-- Left: Status & Quick switcher -->
+        <div class="flex items-center space-x-2">
+            <button id="start-btn" onclick="toggleStartMenu()" class="w-11 h-11 rounded-xl hover:bg-white/10 flex items-center justify-center text-indigo-400 text-xl transition-all transform active:scale-95 shadow-sm">
+                <i class="fa-brands fa-windows"></i>
+            </button>
+            <div class="h-6 w-[1px] bg-white/10 mx-1"></div>
+            <div id="taskbar-apps" class="flex items-center space-x-1.5 overflow-x-auto">
+                <!-- Running taskbar buttons populated by JS -->
+            </div>
+        </div>
+
+        <!-- Right: System Tray -->
+        <div class="flex items-center space-x-3 text-slate-200 text-sm">
+            <button class="flex items-center space-x-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                <i class="fa-solid fa-wifi text-xs"></i>
+                <i class="fa-solid fa-volume-high text-xs"></i>
+                <i class="fa-solid fa-battery-full text-xs text-emerald-400"></i>
+            </button>
+            <div id="clock" class="px-2.5 py-1.5 rounded-lg hover:bg-white/10 cursor-pointer font-medium text-xs tracking-wide">
+                00:00
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="absolute top-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <script>
+        // System State
+        const apps = [
+            { id: 'craft', name: 'Craft 3D', icon: 'fa-cube', color: 'bg-emerald-600', desc: 'Minecraft-like 3D Voxel Sandbox' },
+            { id: 'browser', name: 'OmniBrowser', icon: 'fa-globe', color: 'bg-blue-600', desc: 'Fast Web Explorer & Portal' },
+            { id: 'dash', name: 'Geometry Dash', icon: 'fa-gamepad', color: 'bg-amber-600', desc: 'Rhythm Platformer Challenge' },
+            { id: 'blockworld', name: 'BlockWorld', icon: 'fa-cubes', color: 'bg-purple-600', desc: 'Roblox-style Obby Adventure' },
+            { id: 'paint', name: 'OmniPaint', icon: 'fa-paint-brush', color: 'bg-rose-600', desc: 'Digital Drawing & Canvas Studio' }
+        ];
+
+        let windows = {};
+        let activeWindowId = null;
+        let zIndexCounter = 100;
+        let isStartMenuOpen = false;
+
+        // Initialize Desktop & Start Menu
+        window.addEventListener('DOMContentLoaded', () => {
+            renderDesktopIcons();
+            renderStartMenuApps();
+            initClock();
+            
+            // Click outside to close start menu
+            document.addEventListener('click', (e) => {
+                const startMenu = document.getElementById('start-menu');
+                const startBtn = document.getElementById('start-btn');
+                if (isStartMenuOpen && !startMenu.contains(e.target) && !startBtn.contains(e.target)) {
+                    toggleStartMenu(false);
+                }
+            });
+
+            // Auto open Craft or Welcome
+            setTimeout(() => {
+                showNotification('Welcome to OmniOS', 'Click any desktop icon to launch apps!');
+            }, 600);
+        });
+
+        function initClock() {
+            const update = () => {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const dateStr = now.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                document.getElementById('clock').innerHTML = `<div class="text-right"><div class="font-semibold">${timeStr}</div><div class="text-[10px] text-slate-400">${dateStr}</div></div>`;
+            };
+            update();
+            setInterval(update, 1000);
+        }
+
+        function showNotification(title, message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'glass text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 pointer-events-auto transition-all duration-300 transform translate-y-0 opacity-100 max-w-sm';
+            toast.innerHTML = `
+                <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-bell text-sm"></i></div>
+                <div><div class="font-semibold text-xs">${title}</div><div class="text-xs text-slate-300">${message}</div></div>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(-10px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function toggleStartMenu(forceState) {
+            isStartMenuOpen = forceState !== undefined ? forceState : !isStartMenuOpen;
+            const menu = document.getElementById('start-menu');
+            if (isStartMenuOpen) {
+                menu.classList.remove('hidden');
+                document.getElementById('start-search').focus();
+            } else {
+                menu.classList.add('hidden');
+            }
+        }
+
+        function renderDesktopIcons() {
+            const desktop = document.getElementById('desktop');
+            desktop.innerHTML = '';
+            apps.forEach(app => {
+                const iconEl = document.createElement('div');
+                iconEl.className = 'flex flex-col items-center justify-center p-3 rounded-xl hover:bg-white/10 cursor-pointer group transition-all text-center h-24';
+                iconEl.innerHTML = `
+                    <div class="w-14 h-14 rounded-2xl ${app.color} flex items-center justify-center text-white text-2xl shadow-lg group-hover:scale-105 transition-transform mb-2">
+                        <i class="fa-solid ${app.icon}"></i>
+                    </div>
+                    <span class="text-white text-xs font-medium drop-shadow line-clamp-1">${app.name}</span>
+                `;
+                iconEl.ondblclick = () => openApp(app.id);
+                desktop.appendChild(iconEl);
+            });
+        }
+
+        function renderStartMenuApps() {
+            const grid = document.getElementById('start-app-grid');
+            grid.innerHTML = '';
+            apps.forEach(app => {
+                const item = document.createElement('button');
+                item.className = 'flex flex-col items-center p-3 rounded-xl hover:bg-white/10 transition-colors text-center group';
+                item.innerHTML = `
+                    <div class="w-12 h-12 rounded-xl ${app.color} flex items-center justify-center text-white text-xl shadow mb-1.5 group-hover:scale-105 transition-transform">
+                        <i class="fa-solid ${app.icon}"></i>
+                    </div>
+                    <span class="text-white text-xs font-medium">${app.name}</span>
+                `;
+                item.onclick = () => {
+                    toggleStartMenu(false);
+                    openApp(app.id);
+                };
+                grid.appendChild(item);
+            });
+        }
+
+        function openApp(appId) {
+            const app = apps.find(a => a.id === appId);
+            if (!app) return;
+
+            if (windows[appId]) {
+                focusWindow(appId);
+                if (windows[appId].minimized) {
+                    restoreWindow(appId);
+                }
+                return;
+            }
+
+            zIndexCounter++;
+            const winId = appId;
+            
+            // Calculate default dimensions & random offset
+            const width = appId === 'craft' || appId === 'browser' || appId === 'blockworld' ? 850 : 750;
+            const height = appId === 'craft' || appId === 'browser' || appId === 'blockworld' ? 580 : 520;
+            const left = Math.max(40, (window.innerWidth - width) / 2 + (Object.keys(windows).length * 20));
+            const top = Math.max(30, (window.innerHeight - height - 80) / 2 + (Object.keys(windows).length * 20));
+
+            const winEl = document.createElement('div');
+            winEl.id = `window-${winId}`;
+            winEl.className = 'absolute glass-window rounded-2xl flex flex-col shadow-2xl overflow-hidden pointer-events-auto animate-window border border-slate-700/80';
+            winEl.style.width = `${width}px`;
+            winEl.style.height = `${height}px`;
+            winEl.style.left = `${left}px`;
+            winEl.style.top = `${top}px`;
+            winEl.style.zIndex = zIndexCounter;
+
+            winEl.innerHTML = `
+                <!-- Window Titlebar -->
+                <div id="titlebar-${winId}" class="h-11 bg-slate-900/60 border-b border-white/10 flex items-center justify-between px-4 cursor-grab active:cursor-grabbing shrink-0">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="w-6 h-6 rounded-lg ${app.color} flex items-center justify-center text-white text-xs shadow">
+                            <i class="fa-solid ${app.icon}"></i>
+                        </div>
+                        <span class="text-white text-xs font-semibold tracking-wide">${app.name}</span>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <button onclick="minimizeWindow('${winId}')" class="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-300 transition-colors"><i class="fa-solid fa-minus text-xs"></i></button>
+                        <button onclick="maximizeWindow('${winId}')" class="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-slate-300 transition-colors"><i class="fa-solid fa-expand text-xs"></i></button>
+                        <button onclick="closeWindow('${winId}')" class="w-7 h-7 rounded-lg hover:bg-red-500/80 flex items-center justify-center text-slate-300 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-xs"></i></button>
+                    </div>
+                </div>
+                <!-- Window Content Body -->
+                <div id="content-${winId}" class="flex-1 overflow-hidden relative bg-slate-950/40 flex flex-col"></div>
+            `;
+
+            document.getElementById('window-container').appendChild(winEl);
+
+            windows[winId] = {
+                id: winId,
+                app: app,
+                element: winEl,
+                minimized: false,
+                maximized: false,
+                prevBox: { width, height, left, top }
+            };
+
+            setupDragging(winId);
+            setupWindowFocus(winId);
+            renderAppContent(winId);
+            updateTaskbar();
+            focusWindow(winId);
+        }
+
+        function focusWindow(winId) {
+            zIndexCounter++;
+            if (windows[winId]) {
+                windows[winId].element.style.zIndex = zIndexCounter;
+                activeWindowId = winId;
+                updateTaskbar();
+            }
+        }
+
+        function closeWindow(winId) {
+            if (windows[winId]) {
+                // Special cleanup for apps with intervals/animation loops
+                if (winId === 'dash' && window.dashCleanup) window.dashCleanup();
+                if (winId === 'craft' && window.craftCleanup) window.craftCleanup();
+                if (winId === 'blockworld' && window.blockWorldCleanup) window.blockWorldCleanup();
+
+                windows[winId].element.remove();
+                delete windows[winId];
+                if (activeWindowId === winId) {
+                    const keys = Object.keys(windows);
+                    activeWindowId = keys.length > 0 ? keys[keys.length - 1] : null;
+                }
+                updateTaskbar();
+            }
+        }
+
+        function minimizeWindow(winId) {
+            const w = windows[winId];
+            if (w) {
+                w.minimized = true;
+                w.element.style.display = 'none';
+                updateTaskbar();
+            }
+        }
+
+        function restoreWindow(winId) {
+            const w = windows[winId];
+            if (w) {
+                w.minimized = false;
+                w.element.style.display = 'flex';
+                focusWindow(winId);
+            }
+        }
+
+        function maximizeWindow(winId) {
+            const w = windows[winId];
+            if (!w) return;
+            const el = w.element;
+            if (!w.maximized) {
+                w.prevBox = {
+                    width: el.offsetWidth,
+                    height: el.offsetHeight,
+                    left: el.offsetLeft,
+                    top: el.offsetTop
+                };
+                el.style.left = '0px';
+                el.style.top = '0px';
+                el.style.width = '100vw';
+                el.style.height = 'calc(100vh - 4rem)';
+                el.style.borderRadius = '0px';
+                w.maximized = true;
+            } else {
+                el.style.left = `${w.prevBox.left}px`;
+                el.style.top = `${w.prevBox.top}px`;
+                el.style.width = `${w.prevBox.width}px`;
+                el.style.height = `${w.prevBox.height}px`;
+                el.style.borderRadius = '1rem';
+                w.maximized = false;
+            }
+        }
+
+        function setupDragging(winId) {
+            const winEl = document.getElementById(`window-${winId}`);
+            const titlebar = document.getElementById(`titlebar-${winId}`);
+            let isDragging = false;
+            let startX, startY, initialLeft, initialTop;
+
+            titlebar.onmousedown = (e) => {
+                if (e.target.closest('button')) return;
+                focusWindow(winId);
+                if (windows[winId].maximized) return;
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                initialLeft = winEl.offsetLeft;
+                initialTop = winEl.offsetTop;
+
+                document.onmousemove = (em) => {
+                    if (!isDragging) return;
+                    const dx = em.clientX - startX;
+                    const dy = em.clientY - startY;
+                    winEl.style.left = `${Math.max(0, initialLeft + dx)}px`;
+                    winEl.style.top = `${Math.max(0, initialTop + dy)}px`;
+                };
+
+                document.onmouseup = () => {
+                    isDragging = false;
+                    document.onmousemove = null;
+                    document.onmouseup = null;
+                };
+            };
+        }
+
+        function setupWindowFocus(winId) {
+            const winEl = document.getElementById(`window-${winId}`);
+            winEl.onmousedown = () => focusWindow(winId);
+        }
+
+        function updateTaskbar() {
+            const container = document.getElementById('taskbar-apps');
+            container.innerHTML = '';
+            Object.values(windows).forEach(w => {
+                const btn = document.createElement('button');
+                const isActive = activeWindowId === w.id && !w.minimized;
+                btn.className = `flex items-center space-x-2 px-3 py-2 rounded-xl transition-all ${isActive ? 'bg-white/20 shadow-md border border-white/10' : 'hover:bg-white/10'}`;
+                btn.innerHTML = `
+                    <div class="w-5 h-5 rounded-md ${w.app.color} flex items-center justify-center text-white text-[10px]">
+                        <i class="fa-solid ${w.app.icon}"></i>
+                    </div>
+                    <span class="text-white text-xs font-medium max-w-[100px] truncate">${w.app.name}</span>
+                `;
+                btn.onclick = () => {
+                    if (w.minimized) {
+                        restoreWindow(w.id);
+                    } else if (activeWindowId === w.id) {
+                        minimizeWindow(w.id);
+                    } else {
+                        focusWindow(w.id);
+                    }
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function renderAppContent(winId) {
+            const contentEl = document.getElementById(`content-${winId}`);
+            if (winId === 'craft') {
+                renderCraftApp(contentEl);
+            } else if (winId === 'browser') {
+                renderBrowserApp(contentEl);
+            } else if (winId === 'dash') {
+                renderDashApp(contentEl);
+            } else if (winId === 'blockworld') {
+                renderBlockWorldApp(contentEl);
+            } else if (winId === 'paint') {
+                renderPaintApp(contentEl);
+            }
+        }
+
+        // 1. CRAFT APP (Minecraft-like 3D Voxel Sandbox)
+        function renderCraftApp(container) {
+            container.innerHTML = `
+                <div class="absolute inset-0 flex flex-col">
+                    <!-- Toolbar -->
+                    <div class="bg-slate-900/80 px-4 py-2 border-b border-white/10 flex items-center justify-between z-20">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-slate-300 font-semibold">Active Block:</span>
+                            <div id="craft-active-preview" class="w-6 h-6 rounded bg-emerald-700 border border-white/20"></div>
+                            <span id="craft-active-name" class="text-xs text-white font-bold">Grass</span>
+                        </div>
+                        <div class="flex space-x-1">
+                            <button onclick="setCraftBlock('grass', 0x55aa55)" class="px-2.5 py-1 rounded bg-emerald-800 text-white text-xs hover:bg-emerald-700">Grass</button>
+                            <button onclick="setCraftBlock('dirt', 0x8b5a2b)" class="px-2.5 py-1 rounded bg-amber-800 text-white text-xs hover:bg-amber-700">Dirt</button>
+                            <button onclick="setCraftBlock('stone', 0x888888)" class="px-2.5 py-1 rounded bg-slate-700 text-white text-xs hover:bg-slate-600">Stone</button>
+                            <button onclick="setCraftBlock('wood', 0xa0522d)" class="px-2.5 py-1 rounded bg-yellow-800 text-white text-xs hover:bg-yellow-700">Wood</button>
+                        </div>
+                        <div class="text-[11px] text-slate-400">Click to place / Right-click to remove</div>
+                    </div>
+                    <div id="craft-canvas-container" class="flex-1 relative cursor-crosshair"></div>
+                </div>
+            `;
+
+            setTimeout(() => {
+                const canvasContainer = document.getElementById('craft-canvas-container');
+                if (!canvasContainer) return;
+
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x87ceeb);
+                scene.fog = new THREE.FogExp2(0x87ceeb, 0.035);
+
+                const camera = new THREE.PerspectiveCamera(60, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+                camera.position.set(0, 8, 15);
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+                canvasContainer.appendChild(renderer.domElement);
+
+                // Lighting
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                dirLight.position.set(20, 40, 20);
+                scene.add(dirLight);
+
+                // Block types & materials
+                window.currentBlockType = { name: 'Grass', color: 0x55aa55 };
+                window.setCraftBlock = (name, color) => {
+                    window.currentBlockType = { name, color };
+                    document.getElementById('craft-active-name').innerText = name.toUpperCase();
+                    document.getElementById('craft-active-preview').style.backgroundColor = `#${color.toString(16)}`;
+                };
+
+                const blockGeo = new THREE.BoxGeometry(1, 1, 1);
+                const cubes = [];
+                const interactiveObjects = [];
+
+                // Helper to create block
+                function addBlock(x, y, z, color) {
+                    const mat = new THREE.MeshLambertMaterial({ color: color });
+                    const mesh = new THREE.Mesh(blockGeo, mat);
+                    mesh.position.set(x, y, z);
+                    scene.add(mesh);
+                    cubes.push(mesh);
+                    interactiveObjects.push(mesh);
+                }
+
+                // Initial terrain (flat floor + trees + hills)
+                for (let x = -6; x <= 6; x++) {
+                    for (let z = -6; z <= 6; z++) {
+                        addBlock(x, 0, z, 0x55aa55);
+                        addBlock(x, -1, z, 0x8b5a2b);
+                        addBlock(x, -2, z, 0x888888);
+                    }
+                }
+                // Random structures
+                addBlock(2, 1, 2, 0xa0522d);
+                addBlock(2, 2, 2, 0xa0522d);
+                addBlock(2, 3, 2, 0x55aa55);
+
+                // Controls & Raycasting
+                const raycaster = new THREE.Raycaster();
+                const mouse = new THREE.Vector2();
+
+                renderer.domElement.addEventListener('click', (e) => {
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    mouse.x = ((e.clientX - rect.left) / canvasContainer.clientWidth) * 2 - 1;
+                    mouse.y = -((e.clientY - rect.top) / canvasContainer.clientHeight) * 2 + 1;
+
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(interactiveObjects);
+
+                    if (intersects.length > 0) {
+                        const hit = intersects[0];
+                        if (e.button === 0) { // Place block
+                            const normal = hit.face.normal;
+                            const pos = hit.object.position.clone().add(normal);
+                            addBlock(pos.x, pos.y, pos.z, window.currentBlockType.color);
+                        }
+                    }
+                });
+
+                renderer.domElement.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    mouse.x = ((e.clientX - rect.left) / canvasContainer.clientWidth) * 2 - 1;
+                    mouse.y = -((e.clientY - rect.top) / canvasContainer.clientHeight) * 2 + 1;
+
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObjects(interactiveObjects);
+
+                    if (intersects.length > 0) {
+                        const hit = intersects[0];
+                        scene.remove(hit.object);
+                        const idx = interactiveObjects.indexOf(hit.object);
+                        if (idx > -1) interactiveObjects.splice(idx, 1);
+                    }
+                });
+
+                // Orbit / camera rotation with mouse drag
+                let isMouseDown = false;
+                let prevMouseX = 0, prevMouseY = 0;
+                let theta = 0, phi = Math.PI / 4, radius = 20;
+
+                function updateCamera() {
+                    camera.position.x = radius * Math.sin(phi) * Math.sin(theta);
+                    camera.position.y = radius * Math.cos(phi);
+                    camera.position.z = radius * Math.sin(phi) * Math.cos(theta);
+                    camera.lookAt(0, 0, 0);
+                }
+                updateCamera();
+
+                renderer.domElement.addEventListener('mousedown', (e) => {
+                    if (e.button === 1 || e.shiftKey) { // Middle click or shift drag to rotate view
+                        isMouseDown = true;
+                        prevMouseX = e.clientX;
+                        prevMouseY = e.clientY;
+                    }
+                });
+                window.addEventListener('mousemove', (e) => {
+                    if (!isMouseDown) return;
+                    const dx = e.clientX - prevMouseX;
+                    const dy = e.clientY - prevMouseY;
+                    prevMouseX = e.clientX;
+                    prevMouseY = e.clientY;
+
+                    theta -= dx * 0.01;
+                    phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, phi - dy * 0.01));
+                    updateCamera();
+                });
+                window.addEventListener('mouseup', () => { isMouseDown = false; });
+
+                // Animation loop
+                let animId;
+                const animate = () => {
+                    animId = requestAnimationFrame(animate);
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                window.craftCleanup = () => {
+                    cancelAnimationFrame(animId);
+                    renderer.dispose();
+                };
+            }, 50);
+        }
+
+        // 2. BROWSER APP (OmniBrowser)
+        function renderBrowserApp(container) {
+            container.innerHTML = `
+                <div class="absolute inset-0 flex flex-col bg-slate-900">
+                    <!-- Browser Chrome / URL Bar -->
+                    <div class="bg-slate-800 p-3 border-b border-white/10 flex items-center space-x-2">
+                        <div class="flex space-x-1">
+                            <button onclick="browserNav('back')" class="w-8 h-8 rounded-lg hover:bg-white/10 text-slate-300 flex items-center justify-center"><i class="fa-solid fa-arrow-left text-xs"></i></button>
+                            <button onclick="browserNav('forward')" class="w-8 h-8 rounded-lg hover:bg-white/10 text-slate-300 flex items-center justify-center"><i class="fa-solid fa-arrow-right text-xs"></i></button>
+                            <button onclick="browserNav('reload')" class="w-8 h-8 rounded-lg hover:bg-white/10 text-slate-300 flex items-center justify-center"><i class="fa-solid fa-rotate-right text-xs"></i></button>
+                        </div>
+                        <div class="flex-1 relative">
+                            <i class="fa-solid fa-lock absolute left-3.5 top-2.5 text-emerald-400 text-xs"></i>
+                            <input type="text" id="browser-url" value="omnios://home" class="w-full bg-slate-900 text-white pl-9 pr-4 py-1.5 rounded-xl border border-slate-700 text-xs focus:outline-none focus:border-indigo-500">
+                        </div>
+                        <button onclick="loadBrowserUrl()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow">Go</button>
+                    </div>
+                    <!-- Browser Viewport -->
+                    <div id="browser-view" class="flex-1 bg-slate-950 overflow-y-auto p-6 text-slate-200"></div>
+                </div>
+            `;
+
+            window.loadBrowserUrl = () => {
+                const url = document.getElementById('browser-url').value.trim();
+                const view = document.getElementById('browser-view');
+                if (url.includes('omnios://home') || url === 'home') {
+                    view.innerHTML = `
+                        <div class="max-w-2xl mx-auto text-center py-12">
+                            <div class="w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-3xl mx-auto shadow-lg mb-4"><i class="fa-solid fa-globe"></i></div>
+                            <h1 class="text-2xl font-bold text-white mb-2">OmniSearch</h1>
+                            <p class="text-slate-400 text-sm mb-8">Explore the decentralized web inside OmniOS.</p>
+                            <div class="relative max-w-lg mx-auto mb-8">
+                                <input type="text" id="portal-search" placeholder="Search the web or type a URL..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 pl-10 text-sm text-white focus:outline-none focus:border-indigo-500">
+                                <i class="fa-solid fa-search absolute left-3.5 top-3.5 text-slate-400"></i>
+                            </div>
+                            <div class="grid grid-cols-4 gap-4 text-center">
+                                <div onclick="navigateTo('omnios://news')" class="p-4 rounded-xl bg-slate-900/80 hover:bg-slate-800 cursor-pointer border border-slate-800"><i class="fa-solid fa-newspaper text-indigo-400 text-lg mb-2"></i><div class="text-xs font-medium">News</div></div>
+                                <div onclick="navigateTo('omnios://weather')" class="p-4 rounded-xl bg-slate-900/80 hover:bg-slate-800 cursor-pointer border border-slate-800"><i class="fa-solid fa-cloud-sun text-amber-400 text-lg mb-2"></i><div class="text-xs font-medium">Weather</div></div>
+                                <div onclick="navigateTo('omnios://wiki')" class="p-4 rounded-xl bg-slate-900/80 hover:bg-slate-800 cursor-pointer border border-slate-800"><i class="fa-solid fa-book text-emerald-400 text-lg mb-2"></i><div class="text-xs font-medium">Wiki</div></div>
+                                <div onclick="navigateTo('omnios://games')" class="p-4 rounded-xl bg-slate-900/80 hover:bg-slate-800 cursor-pointer border border-slate-800"><i class="fa-solid fa-gamepad text-purple-400 text-lg mb-2"></i><div class="text-xs font-medium">Arcade</div></div>
+                            </div>
+                        </div>
+                    `;
+                } else if (url.includes('omnios://news')) {
+                    view.innerHTML = `
+                        <div class="max-w-2xl mx-auto py-6">
+                            <button onclick="navigateTo('omnios://home')" class="text-indigo-400 text-xs mb-4 flex items-center space-x-1"><i class="fa-solid fa-arrow-left"></i><span>Back to Home</span></button>
+                            <h2 class="text-xl font-bold text-white mb-4">OmniNews Daily</h2>
+                            <div class="space-y-4">
+                                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800"><h3 class="font-semibold text-white mb-1">OmniOS 2.0 Released for Web Browsers</h3><p class="text-xs text-slate-400">Bringing desktop-grade 3D games and productivity apps seamlessly into Google Chrome across Windows & Ubuntu.</p></div>
+                                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800"><h3 class="font-semibold text-white mb-1">Top 10 Voxel Building Tips in Craft 3D</h3><p class="text-xs text-slate-400">Master multi-level architecture using our raycast engine.</p></div>
+                            </div>
+                        </div>
+                    `;
+                } else if (url.includes('omnios://weather')) {
+                    view.innerHTML = `
+                        <div class="max-w-xl mx-auto py-8 text-center">
+                            <button onclick="navigateTo('omnios://home')" class="text-indigo-400 text-xs mb-4 flex items-center space-x-1"><i class="fa-solid fa-arrow-left"></i><span>Back to Home</span></button>
+                            <h2 class="text-2xl font-bold text-white mb-1">Spanaway, WA</h2>
+                            <p class="text-slate-400 text-xs mb-6">Current Conditions</p>
+                            <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 inline-block">
+                                <i class="fa-solid fa-cloud-sun text-5xl text-amber-400 mb-4"></i>
+                                <div class="text-4xl font-bold text-white mb-2">68°F</div>
+                                <div class="text-sm text-slate-300">Partly Cloudy • Humidity 45%</div>
+                            </div>
+                        </div>
+                    `;
+                } else if (url.includes('omnios://wiki')) {
+                    view.innerHTML = `
+                        <div class="max-w-2xl mx-auto py-6">
+                            <button onclick="navigateTo('omnios://home')" class="text-indigo-400 text-xs mb-4 flex items-center space-x-1"><i class="fa-solid fa-arrow-left"></i><span>Back to Home</span></button>
+                            <h2 class="text-xl font-bold text-white mb-2">About OmniOS</h2>
+                            <p class="text-xs text-slate-300 leading-relaxed mb-4">OmniOS is a single-file virtual operating system engineered for modern web browsers. It integrates window management, hardware-accelerated 3D rendering with Three.js, and multi-threaded application support into a unified, responsive user experience.</p>
+                        </div>
+                    `;
+                } else {
+                    view.innerHTML = `
+                        <div class="max-w-xl mx-auto text-center py-16">
+                            <button onclick="navigateTo('omnios://home')" class="text-indigo-400 text-xs mb-4 flex items-center space-x-1"><i class="fa-solid fa-arrow-left"></i><span>Back to Home</span></button>
+                            <i class="fa-solid fa-triangle-exclamation text-4xl text-amber-500 mb-4"></i>
+                            <h2 class="text-xl font-bold text-white mb-2">Site Cannot Be Reached</h2>
+                            <p class="text-xs text-slate-400">OmniBrowser successfully simulated navigation, but external domains require protocol binding. Try visiting <code class="text-indigo-400">omnios://home</code>.</p>
+                        </div>
+                    `;
+                }
+            };
+
+            window.navigateTo = (url) => {
+                document.getElementById('browser-url').value = url;
+                loadBrowserUrl();
+            };
+
+            window.browserNav = (action) => {
+                if (action === 'reload') loadBrowserUrl();
+                else navigateTo('omnios://home');
+            };
+
+            loadBrowserUrl();
+        }
+
+        // 3. DASH APP (Geometry Dash-like rhythm runner)
+        function renderDashApp(container) {
+            container.innerHTML = `
+                <div class="absolute inset-0 flex flex-col bg-slate-950">
+                    <div class="bg-slate-900/80 px-4 py-2 border-b border-white/10 flex items-center justify-between z-20">
+                        <div class="flex items-center space-x-4">
+                            <span class="text-xs text-white font-bold">SCORE: <span id="dash-score" class="text-amber-400">0</span></span>
+                            <span class="text-xs text-slate-400">HIGH: <span id="dash-high" class="text-emerald-400">0</span></span>
+                        </div>
+                        <button onclick="startDashGame()" id="dash-start-btn" class="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold shadow">PLAY</button>
+                    </div>
+                    <div class="flex-1 relative flex items-center justify-center overflow-hidden">
+                        <canvas id="dash-canvas" class="w-full h-full block bg-gradient-to-b from-slate-900 to-indigo-950"></canvas>
+                        <div id="dash-overlay" class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6">
+                            <div class="w-16 h-16 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-3xl shadow-lg mb-4 animate-bounce"><i class="fa-solid fa-cube"></i></div>
+                            <h2 class="text-2xl font-bold text-white mb-2">OmniDash</h2>
+                            <p class="text-xs text-slate-300 mb-6 max-w-sm">Press Spacebar or Click to jump over spikes and obstacles!</p>
+                            <button onclick="startDashGame()" class="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-sm shadow-xl transition-transform active:scale-95">START GAME</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            setTimeout(() => {
+                const canvas = document.getElementById('dash-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+
+                let gameRunning = false;
+                let score = 0;
+                let highScore = 0;
+                let obstacles = [];
+                let player = { x: 80, y: canvas.height - 100, size: 30, vy: 0, gravity: 0.8, jumpForce: -14, grounded: false, rotation: 0 };
+                let frameCount = 0;
+
+                window.startDashGame = () => {
+                    document.getElementById('dash-overlay').style.display = 'none';
+                    gameRunning = true;
+                    score = 0;
+                    obstacles = [];
+                    player.y = canvas.height - 100;
+                    player.vy = 0;
+                    frameCount = 0;
+                };
+
+                const jump = () => {
+                    if (gameRunning && player.grounded) {
+                        player.vy = player.jumpForce;
+                        player.grounded = false;
+                    }
+                };
+
+                window.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        jump();
+                    }
+                });
+                canvas.onclick = () => jump();
+
+                const gameLoop = () => {
+                    if (!gameRunning) return;
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                    // Background grid/stars
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    for (let i = 0; i < canvas.width; i += 40) {
+                        ctx.fillRect(i, 0, 1, canvas.height);
+                    }
+
+                    // Floor
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(0, canvas.height - 70, canvas.width, 70);
+                    ctx.fillStyle = '#d97706';
+                    ctx.fillRect(0, canvas.height - 70, canvas.width, 6);
+
+                    // Player physics
+                    player.vy += player.gravity;
+                    player.y += player.vy;
+                    if (player.y >= canvas.height - 70 - player.size) {
+                        player.y = canvas.height - 70 - player.size;
+                        player.vy = 0;
+                        player.grounded = true;
+                        player.rotation = Math.round(player.rotation / 90) * 90;
+                    } else {
+                        player.rotation += 6;
+                    }
+
+                    // Draw Player
+                    ctx.save();
+                    ctx.translate(player.x + player.size / 2, player.y + player.size / 2);
+                    ctx.rotate((player.rotation * Math.PI) / 180);
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.fillRect(-player.size / 2, -player.size / 2, player.size, player.size);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(-player.size / 2, -player.size / 2, player.size, player.size);
+                    ctx.restore();
+
+                    // Obstacles spawning
+                    frameCount++;
+                    if (frameCount % 90 === 0) {
+                        obstacles.push({ x: canvas.width, y: canvas.height - 70 - 35, width: 30, height: 35 });
+                    }
+
+                    // Update & draw obstacles
+                    for (let i = obstacles.length - 1; i >= 0; i--) {
+                        let obs = obstacles[i];
+                        obs.x -= 6;
+
+                        ctx.fillStyle = '#ef4444';
+                        ctx.beginPath();
+                        ctx.moveTo(obs.x, obs.y + obs.height);
+                        ctx.lineTo(obs.x + obs.width / 2, obs.y);
+                        ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        // Collision detection
+                        if (
+                            player.x < obs.x + obs.width &&
+                            player.x + player.size > obs.x &&
+                            player.y < obs.y + obs.height &&
+                            player.y + player.size > obs.y
+                        ) {
+                            gameRunning = false;
+                            if (score > highScore) highScore = score;
+                            document.getElementById('dash-high').innerText = highScore;
+                            document.getElementById('dash-overlay').style.display = 'flex';
+                        }
+
+                        if (obs.x + obs.width < 0) {
+                            obstacles.splice(i, 1);
+                            score += 10;
+                            document.getElementById('dash-score').innerText = score;
+                        }
+                    }
+
+                    if (gameRunning) {
+                        window.dashAnimId = requestAnimationFrame(gameLoop);
+                    }
+                };
+
+                window.dashCleanup = () => {
+                    cancelAnimationFrame(window.dashAnimId);
+                };
+
+                // Start loop trigger
+                const checkLoop = () => {
+                    if (gameRunning) gameLoop();
+                    window.dashAnimId = requestAnimationFrame(checkLoop);
+                };
+                window.dashAnimId = requestAnimationFrame(checkLoop);
+            }, 50);
+        }
+
+        // 4. BLOCKWORLD APP (Roblox-like 3D Obby Adventure)
+        function renderBlockWorldApp(container) {
+            container.innerHTML = `
+                <div class="absolute inset-0 flex flex-col">
+                    <div class="bg-slate-900/80 px-4 py-2 border-b border-white/10 flex items-center justify-between z-20">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full bg-purple-500 animate-ping"></div>
+                            <span class="text-xs text-white font-bold">BlockWorld Obby</span>
+                        </div>
+                        <div class="text-[11px] text-slate-300">Use WASD / Arrow keys to explore and jump</div>
+                    </div>
+                    <div id="blockworld-canvas-container" class="flex-1 relative"></div>
+                </div>
+            `;
+
+            setTimeout(() => {
+                const canvasContainer = document.getElementById('blockworld-canvas-container');
+                if (!canvasContainer) return;
+
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x1e1b4b);
+                scene.fog = new THREE.FogExp2(0x1e1b4b, 0.02);
+
+                const camera = new THREE.PerspectiveCamera(60, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
+                camera.position.set(0, 10, 20);
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+                canvasContainer.appendChild(renderer.domElement);
+
+                scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                dirLight.position.set(10, 30, 20);
+                scene.add(dirLight);
+
+                // Build Obby Course
+                const platformGeo = new THREE.BoxGeometry(6, 1, 6);
+                const colors = [0x9333ea, 0x3b82f6, 0x10b981, 0xf59e0b, 0xef4444];
+                const platforms = [];
+
+                for (let i = 0; i < 10; i++) {
+                    const mat = new THREE.MeshLambertMaterial({ color: colors[i % colors.length] });
+                    const mesh = new THREE.Mesh(platformGeo, mat);
+                    mesh.position.set(0, i * 1.5, -i * 8);
+                    scene.add(mesh);
+                    platforms.push(mesh);
+                }
+
+                // Player avatar (blocky Roblox style)
+                const avatarGroup = new THREE.Group();
+                const bodyMat = new THREE.MeshLambertMaterial({ color: 0xec4899 });
+                const headMat = new THREE.MeshLambertMaterial({ color: 0xfde047 });
+
+                const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.8, 0.8), bodyMat);
+                torso.position.y = 1.9;
+                avatarGroup.add(torso);
+
+                const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), headMat);
+                head.position.y = 3.1;
+                avatarGroup.add(head);
+
+                scene.add(avatarGroup);
+
+                let playerPos = { x: 0, y: 1.5, z: 0 };
+                let playerVelY = 0;
+                const keys = {};
+
+                window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+                window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+                let animId;
+                const animate = () => {
+                    animId = requestAnimationFrame(animate);
+
+                    // Movement
+                    if (keys['KeyW'] || keys['ArrowUp']) playerPos.z -= 0.15;
+                    if (keys['KeyS'] || keys['ArrowDown']) playerPos.z += 0.15;
+                    if (keys['KeyA'] || keys['ArrowLeft']) playerPos.x -= 0.15;
+                    if (keys['KeyD'] || keys['ArrowRight']) playerPos.x += 0.15;
+                    if ((keys['Space'] || keys['KeyW']) && playerPos.y <= 1.5) {
+                        playerVelY = 0.3;
+                    }
+
+                    playerVelY -= 0.015;
+                    playerPos.y += playerVelY;
+                    if (playerPos.y < 1.5) {
+                        playerPos.y = 1.5;
+                        playerVelY = 0;
+                    }
+
+                    avatarGroup.position.set(playerPos.x, playerPos.y - 1.5, playerPos.z);
+
+                    // Camera follow
+                    camera.position.x = playerPos.x;
+                    camera.position.y = playerPos.y + 6;
+                    camera.position.z = playerPos.z + 12;
+                    camera.lookAt(playerPos.x, playerPos.y, playerPos.z);
+
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                window.blockWorldCleanup = () => {
+                    cancelAnimationFrame(animId);
+                    renderer.dispose();
+                };
+            }, 50);
+        }
+
+        // 5. PAINT APP (OmniPaint)
+        function renderPaintApp(container) {
+            container.innerHTML = `
+                <div class="absolute inset-0 flex flex-col bg-slate-900">
+                    <!-- Tool bar -->
+                    <div class="bg-slate-800 p-2.5 border-b border-white/10 flex items-center justify-between z-20">
+                        <div class="flex items-center space-x-3">
+                            <div class="flex space-x-1">
+                                <button onclick="setTool('pencil')" id="tool-pencil" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold">Pencil</button>
+                                <button onclick="setTool('brush')" id="tool-brush" class="px-3 py-1.5 rounded-lg bg-slate-700 text-slate-300 text-xs font-semibold">Brush</button>
+                                <button onclick="setTool('eraser')" id="tool-eraser" class="px-3 py-1.5 rounded-lg bg-slate-700 text-slate-300 text-xs font-semibold">Eraser</button>
+                            </div>
+                            <div class="h-5 w-[1px] bg-white/10"></div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs text-slate-300">Color:</span>
+                                <input type="color" id="paint-color" value="#6366f1" class="w-7 h-7 rounded border-0 cursor-pointer bg-transparent">
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs text-slate-300">Size:</span>
+                                <input type="range" id="paint-size" min="1" max="40" value="5" class="w-20 accent-indigo-500">
+                            </div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="clearCanvas()" class="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs">Clear</button>
+                            <button onclick="downloadCanvas()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold"><i class="fa-solid fa-download mr-1"></i> Save</button>
+                        </div>
+                    </div>
+                    <!-- Canvas Area -->
+                    <div id="paint-canvas-container" class="flex-1 relative bg-slate-950 overflow-hidden flex items-center justify-center">
+                        <canvas id="paint-canvas" class="bg-white shadow-2xl rounded-lg cursor-crosshair"></canvas>
+                    </div>
+                </div>
+            `;
+
+            setTimeout(() => {
+                const containerEl = document.getElementById('paint-canvas-container');
+                const canvas = document.getElementById('paint-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+
+                canvas.width = Math.min(650, containerEl.clientWidth - 40);
+                canvas.height = Math.min(400, containerEl.clientHeight - 40);
+
+                // Fill white background initially
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                let painting = false;
+                let currentTool = 'pencil';
+
+                window.setTool = (tool) => {
+                    currentTool = tool;
+                    ['pencil', 'brush', 'eraser'].forEach(t => {
+                        const btn = document.getElementById(`tool-${t}`);
+                        if (btn) {
+                            btn.className = t === tool ? 'px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold' : 'px-3 py-1.5 rounded-lg bg-slate-700 text-slate-300 text-xs font-semibold';
+                        }
+                    });
+                };
+
+                const startPosition = (e) => {
+                    painting = true;
+                    draw(e);
+                };
+
+                const finishedPosition = () => {
+                    painting = false;
+                    ctx.beginPath();
+                };
+
+                const draw = (e) => {
+                    if (!painting) return;
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+
+                    ctx.lineWidth = document.getElementById('paint-size').value;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+
+                    if (currentTool === 'eraser') {
+                        ctx.strokeStyle = '#ffffff';
+                    } else {
+                        ctx.strokeStyle = document.getElementById('paint-color').value;
+                    }
+
+                    ctx.lineTo(x, y);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(x, y);
+                };
+
+                canvas.addEventListener('mousedown', startPosition);
+                canvas.addEventListener('mouseup', finishedPosition);
+                canvas.addEventListener('mousemove', draw);
+
+                window.clearCanvas = () => {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                };
+
+                window.downloadCanvas = () => {
+                    const link = document.createElement('a');
+                    link.download = 'omnios-masterpiece.png';
+                    link.href = canvas.toDataURL();
+                    link.click();
+                    showNotification('OmniPaint', 'Masterpiece saved successfully!');
+                };
+            }, 50);
+        }
+    </script>
+</body>
+</html>
